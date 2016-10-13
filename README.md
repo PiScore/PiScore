@@ -1,6 +1,7 @@
 # PiScore
 
-PiScore - a system for playing back video scores and keeping in sync across multiple devices. Copyright (C) 2016  David Stephen Grant
+PiScore - a system for playing back scrolling musical scores and keeping in sync across multiple devices.
+Copyright (C) 2016  David Stephen Grant
 
 Please note: The prototype version of PiScore written in Processing has been relocated to https://github.com/PiScore/PiScore-Processing
 
@@ -18,6 +19,3 @@ You should have received a copy of the GNU General Public License
 along with PiScore.  If not, see <http://www.gnu.org/licenses/>.
 
 GUI icons: Designed by Freepik and distributed by Flaticon.
-
-Included musical scores are not issued with any license and may
-be protected by Copyright.
