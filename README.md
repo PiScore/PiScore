@@ -1,8 +1,8 @@
 # PiScore
 
-PiScore - a system for playing back video scores and keeping in sync
-across multiple devices.
-Copyright (C) 2016  David Stephen Grant
+PiScore - a system for playing back video scores and keeping in sync across multiple devices. Copyright (C) 2016  David Stephen Grant
+
+Please note: The prototype version of PiScore written in Processing has been relocated to https://github.com/PiScore/PiScore-Processing
 
 PiScore is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
