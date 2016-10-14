@@ -26,7 +26,7 @@
 //--------------------------------------------------------------
 void ofApp::setup() {
 	appVersionID = "0.3.2";
-	build = "raspi"; // "windows", "osx", "raspi"
+	build = "windows"; // "windows", "osx", "raspi"
 
 	if (build == "windows") {
 		userPath = getenv("USERPROFILE"); // Windows build
@@ -129,6 +129,7 @@ void ofApp::setup() {
 					scoreTilesPaths.push_back(tmpPath);
 					canvasTilesPaths.push_back(tmpCanvasPath);
 				}
+				
 			}
 
 			loadedScorep = true;
@@ -1583,8 +1584,13 @@ void ofApp::mousePressed(int x, int y, int button) {
 				}
 			}
 			else if (build == "raspi") {
-				if (scoreTilesPaths.size() > 0 && ofFile::doesFileExist(scoreTilesPaths[0])) {
-					tempTextBuffer = scoreTilesPaths[0];
+				if (ofFile::doesFileExist(pathPrevScore)) {
+					ifstream fin;
+					string str;
+					fin.open(pathPrevScore.c_str());
+					getline(fin, str);
+					tempTextBuffer = str;
+					fin.close();
 				}
 				else tempTextBuffer = userPath;
 				raspiScorePathDialogp = true;
@@ -1782,6 +1788,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 					canvasTilesPaths.push_back(tmpCanvasPath);
 				}
 			}
+			
 
 			loadedScorep = true;
 			filePrevScore.open(pathPrevScore, ofFile::WriteOnly);
