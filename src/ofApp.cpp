@@ -25,24 +25,25 @@
 
 //--------------------------------------------------------------
 void ofApp::setup() {
-        appVersionID = "0.3.2";
-		build = "windows"; // "windows", "osx", "raspi"
+	appVersionID = "0.3.2";
+	build = "raspi"; // "windows", "osx", "raspi"
 
-		if (build == "windows") {
-			userPath = getenv("USERPROFILE"); // Windows build
-		}
-		else if (build == "osx") {
-			userPath = getenv("HOME");
-			ofSetDataPathRoot("../Resources/data/");
-			// In Xcode project add following line to "Build Phases" --> "Run Script",
-			// making sure the preceding line ends with a semi-colon:
-			// cp -r bin/data "$TARGET_BUILD_DIR/$PRODUCT_NAME.app/Contents/Resources";
-			// Set icon path in Project.xccode to bin/data/gui/ !!without string quotes!!
-			// and icon names to PiScore.icns
-		}
-		else if (build == "raspi") {
-			userPath = getenv("HOME");
-		}
+	if (build == "windows") {
+		userPath = getenv("USERPROFILE"); // Windows build
+	}
+	else if (build == "osx") {
+		userPath = getenv("HOME");
+		ofSetDataPathRoot("../Resources/data/");
+		// In Xcode project add following line to "Build Phases" --> "Run Script",
+		// making sure the preceding line ends with a semi-colon:
+		// cp -r bin/data "$TARGET_BUILD_DIR/$PRODUCT_NAME.app/Contents/Resources";
+		// Set icon path in Project.xccode to bin/data/gui/ !!without string quotes!!
+		// and icon names to PiScore.icns
+	}
+	else if (build == "raspi") {
+		userPath = getenv("HOME");
+		//userPath = getenv("USERPROFILE"); // For debugging on Windows
+	}
 
 	ofSetWindowTitle("PiScore v" + appVersionID);
 
@@ -93,6 +94,7 @@ void ofApp::setup() {
 
 	ipEditp = false;
 	screenSettingsp = false;
+	raspiScorePathDialogp = false;
 
 	wizardText[0] = "Where does the music start?";
 	wizardText[1] = "Where does the music end?";
@@ -616,6 +618,66 @@ void ofApp::draw() {
 				tempTextBuffer,
 				((ofGetWidth() - iconPadding) / 2) - iconSize - ((iconPadding + iconSize) * 2 /* hPos */) + 5,
 				ofGetHeight() - iconPadding - iconSize - iconPadding - 5);
+
+			ofSetColor(255);
+			ofFill();
+			ofCircle(
+				((ofGetWidth() + iconPadding) / 2) + ((iconPadding + iconSize) * 3 /* hPos */) + round(iconSize * 0.5),
+				ofGetHeight() - iconPadding - iconSize - ((iconPadding + iconSize) * 0 /* vPos */) + round(iconSize * 0.5),
+				round(iconSize * 0.5));
+			ofSetColor(100, 255, 100, semiTransparent);
+			ofFill();
+			ofCircle(
+				((ofGetWidth() + iconPadding) / 2) + ((iconPadding + iconSize) * 3 /* hPos */) + round(iconSize * 0.5),
+				ofGetHeight() - iconPadding - iconSize - ((iconPadding + iconSize) * 0 /* vPos */) + round(iconSize * 0.5),
+				round(iconSize * 0.5));
+			ofSetColor(255);
+			checkedButton.draw(
+				((ofGetWidth() + iconPadding) / 2) + ((iconPadding + iconSize) * 3 /* hPos */),
+				ofGetHeight() - iconPadding - iconSize - ((iconPadding + iconSize) * 0 /* vPos */),
+				iconSize,
+				iconSize);
+		}
+
+		if (raspiScorePathDialogp) {
+			ofSetColor(255, semiTransparent);
+			ofRect(
+				0,
+				0,
+				ofGetWidth(),
+				ofGetHeight()
+			);
+
+			ofSetColor(255, 255, 0, semiTransparent);
+			ofRect(
+				((ofGetWidth() - iconPadding) / 2) - iconSize - ((iconPadding + iconSize) * 2 /* hPos */),
+				ofGetHeight() - iconPadding - iconSize - iconPadding - 40 - 100,
+				(iconSize + iconPadding) * 5 + iconSize,
+				40 + 100
+			);
+
+			ofSetColor(0);
+			ofDrawBitmapString(
+				"Enter path to the first score tile:",
+				((ofGetWidth() - iconPadding) / 2) - iconSize - ((iconPadding + iconSize) * 2 /* hPos */) + 5,
+				ofGetHeight() - iconPadding - iconSize - iconPadding - 25 - 100);
+
+			ofSetColor(ofColor::red);
+			tmpDisplayString.clear();
+			for (int i = 0; i < tempTextBuffer.size(); i++)
+			{
+				tmpDisplayString.push_back(tempTextBuffer[i]);
+				if (((i + 1) % 39) == 0) {
+					tmpDisplayString.push_back('\n');
+				}
+			}
+			string str(tmpDisplayString.begin(), tmpDisplayString.end());
+			ofDrawBitmapString(
+
+
+				str,
+				((ofGetWidth() - iconPadding) / 2) - iconSize - ((iconPadding + iconSize) * 2 /* hPos */) + 5,
+				ofGetHeight() - iconPadding - iconSize - iconPadding - 5 - 100);
 
 			ofSetColor(255);
 			ofFill();
@@ -1205,12 +1267,12 @@ void ofApp::draw() {
 	}
 
 	// Draw cursor
-		ofSetColor(ofColor::black);
-		ofSetLineWidth(2);
-		ofDrawLine(mouseXScreen - 2, mouseYScreen, mouseXScreen - 10, mouseYScreen);
-		ofDrawLine(mouseXScreen + 2, mouseYScreen, mouseXScreen + 10, mouseYScreen);
-		ofDrawLine(mouseXScreen, mouseYScreen - 2, mouseXScreen, mouseYScreen - 10);
-		ofDrawLine(mouseXScreen, mouseYScreen + 2, mouseXScreen, mouseYScreen + 10);
+	ofSetColor(ofColor::black);
+	ofSetLineWidth(2);
+	ofDrawLine(mouseXScreen - 2, mouseYScreen, mouseXScreen - 10, mouseYScreen);
+	ofDrawLine(mouseXScreen + 2, mouseYScreen, mouseXScreen + 10, mouseYScreen);
+	ofDrawLine(mouseXScreen, mouseYScreen - 2, mouseXScreen, mouseYScreen - 10);
+	ofDrawLine(mouseXScreen, mouseYScreen + 2, mouseXScreen, mouseYScreen + 10);
 
 }
 
@@ -1242,6 +1304,14 @@ void ofApp::keyPressed(int key) {
 				tempTextBuffer.pop_back();
 			}
 		}
+	}
+	if (appState == 0 && raspiScorePathDialogp) {
+		if (key == OF_KEY_BACKSPACE) {
+			if (tempTextBuffer.size() > 0) {
+				tempTextBuffer.pop_back();
+			}
+		}
+		else tempTextBuffer += key;
 	}
 }
 
@@ -1289,7 +1359,7 @@ void ofApp::mouseDragged(int x, int y, int button) {
 												if (e2 < dy) { err += dx; y0 += sy; }
 												}
 												}*/
-		
+
 		int tilesWidth = (canvasTilesImages[0].getWidth());
 		int currentTile = mouseX / tilesWidth;
 
@@ -1326,7 +1396,7 @@ void ofApp::mouseDragged(int x, int y, int button) {
 			if (e2 > -dx) { err -= dy; x0 += sx; }
 			if (e2 < dy) { err += dx; y0 += sy; }
 		}
-		
+
 	}
 }
 
@@ -1376,6 +1446,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 		(appState == 0) &&
 		(!ipEditp) &&
 		(!screenSettingsp) &&
+		(!raspiScorePathDialogp) &&
 		(!viewLicensep)
 		) {
 
@@ -1451,63 +1522,72 @@ void ofApp::mousePressed(int x, int y, int button) {
 			(y < iconPadding + ((iconPadding + iconSize) * 0 /* vPos */) + iconSize)
 			)
 		{
-			ofFileDialogResult loadscore = ofSystemLoadDialog("Load first score tile (PNG/JPG/GIF)");
-			if (loadscore.bSuccess) {
-				scoreTilesPaths.clear();
-				canvasTilesPaths.clear();
-				string str = loadscore.getPath();
-				string ext = ofFilePath::getFileExt(str);
-				ofDirectory dir(ofFilePath::getEnclosingDirectory(str));
-				//load show files with same extension
-				dir.allowExt(ext);
-				//populate the directory object
-				dir.listDir();
-				for (int i = 0; i < dir.size(); i++) {
-					string tmpPath = dir.getPath(i);
-					string tmpCanvasPath = ofFilePath::getEnclosingDirectory(tmpPath) + "annotations/" + ofFilePath::getBaseName(tmpPath) + "-annotations.png";
-					if (tmpPath.find("-annotations.png") == std::string::npos) { // Only load if -annotations.png is not part of the filename
-						scoreTilesPaths.push_back(tmpPath);
-						canvasTilesPaths.push_back(tmpCanvasPath);
+			if (build != "raspi") {
+				ofFileDialogResult loadscore = ofSystemLoadDialog("Load first score tile (PNG/JPG/GIF)");
+				if (loadscore.bSuccess) {
+					scoreTilesPaths.clear();
+					canvasTilesPaths.clear();
+					string str = loadscore.getPath();
+					string ext = ofFilePath::getFileExt(str);
+					ofDirectory dir(ofFilePath::getEnclosingDirectory(str));
+					//load show files with same extension
+					dir.allowExt(ext);
+					//populate the directory object
+					dir.listDir();
+					for (int i = 0; i < dir.size(); i++) {
+						string tmpPath = dir.getPath(i);
+						string tmpCanvasPath = ofFilePath::getEnclosingDirectory(tmpPath) + "annotations/" + ofFilePath::getBaseName(tmpPath) + "-annotations.png";
+						if (tmpPath.find("-annotations.png") == std::string::npos) { // Only load if -annotations.png is not part of the filename
+							scoreTilesPaths.push_back(tmpPath);
+							canvasTilesPaths.push_back(tmpCanvasPath);
+						}
 					}
-				}
 
-				loadedScorep = true;
-				filePrevScore.open(pathPrevScore, ofFile::WriteOnly);
-				filePrevScore << str << endl;
-				filePrevScore.close();
-				pathLoadedScore = str;
-				if (build != "raspi") {
-					pathAudio = ofFilePath::getEnclosingDirectory(str) + ofFilePath::getBaseName(str) + ".wav";
-					//pathCanvas = ofFilePath::getEnclosingDirectory(str) + ofFilePath::getBaseName(str) + "-canvas.png";
-					if (ofFile::doesFileExist(pathAudio)) {
-						audiop = true;
+					loadedScorep = true;
+					filePrevScore.open(pathPrevScore, ofFile::WriteOnly);
+					filePrevScore << str << endl;
+					filePrevScore.close();
+					pathLoadedScore = str;
+					if (build != "raspi") {
+						pathAudio = ofFilePath::getEnclosingDirectory(str) + ofFilePath::getBaseName(str) + ".wav";
+						//pathCanvas = ofFilePath::getEnclosingDirectory(str) + ofFilePath::getBaseName(str) + "-canvas.png";
+						if (ofFile::doesFileExist(pathAudio)) {
+							audiop = true;
+						}
+						else audiop = false;
 					}
-					else audiop = false;
-				}
-				pathLoadedScoreConf = ofFilePath::getEnclosingDirectory(str) + ofFilePath::getBaseName(str) + ".piscore";
-				if (ofFile::doesFileExist(pathLoadedScoreConf)) {
-					loadedScoreConfp = true;
-					ifstream fin; //declare a file stream  
-					fin.open(pathLoadedScoreConf.c_str()); //open your text file
-					for (int i = 0; i < 9; i++) {
-						string str; //declare a string for storage  
-						getline(fin, str); //get a line from the file, put it in the string  
-						loadedScoreConfData.push_back(str);
+					pathLoadedScoreConf = ofFilePath::getEnclosingDirectory(str) + ofFilePath::getBaseName(str) + ".piscore";
+					if (ofFile::doesFileExist(pathLoadedScoreConf)) {
+						loadedScoreConfp = true;
+						ifstream fin; //declare a file stream  
+						fin.open(pathLoadedScoreConf.c_str()); //open your text file
+						for (int i = 0; i < 9; i++) {
+							string str; //declare a string for storage  
+							getline(fin, str); //get a line from the file, put it in the string  
+							loadedScoreConfData.push_back(str);
+						}
+						fin.close();
+						start = atoi(loadedScoreConfData[0].c_str());
+						end = atoi(loadedScoreConfData[1].c_str());
+						clefsStart = atoi(loadedScoreConfData[2].c_str());
+						clefsEnd = atoi(loadedScoreConfData[3].c_str());
+						dur = atof(loadedScoreConfData[4].c_str());
+						preroll = atof(loadedScoreConfData[5].c_str());
+						zoom = atof(loadedScoreConfData[6].c_str());
+						vOffset = atoi(loadedScoreConfData[7].c_str());
+						audioStart = atoi(loadedScoreConfData[8].c_str());
 					}
-					fin.close();
-					start = atoi(loadedScoreConfData[0].c_str());
-					end = atoi(loadedScoreConfData[1].c_str());
-					clefsStart = atoi(loadedScoreConfData[2].c_str());
-					clefsEnd = atoi(loadedScoreConfData[3].c_str());
-					dur = atof(loadedScoreConfData[4].c_str());
-					preroll = atof(loadedScoreConfData[5].c_str());
-					zoom = atof(loadedScoreConfData[6].c_str());
-					vOffset = atoi(loadedScoreConfData[7].c_str());
-					audioStart = atoi(loadedScoreConfData[8].c_str());
+					else {
+						loadedScoreConfp = false;
+					}
 				}
-				else {
-					loadedScoreConfp = false;
+			}
+			else if (build == "raspi") {
+				if (scoreTilesPaths.size() > 0 && ofFile::doesFileExist(scoreTilesPaths[0])) {
+					tempTextBuffer = scoreTilesPaths[0];
 				}
+				else tempTextBuffer = userPath;
+				raspiScorePathDialogp = true;
 			}
 		}
 
@@ -1674,6 +1754,73 @@ void ofApp::mousePressed(int x, int y, int button) {
 				ofSetWindowShape(width, height);
 				screenSettingsp = false;
 			}
+		}
+	}
+
+	if (raspiScorePathDialogp) {
+		if (
+			(x > ((ofGetWidth() + iconPadding) / 2) + ((iconPadding + iconSize) * 3 /* hPos */)) &&
+			(x < ((ofGetWidth() + iconPadding) / 2) + ((iconPadding + iconSize) * 3 /* hPos */) + iconSize) &&
+			(y > ofGetHeight() - iconPadding - iconSize - ((iconPadding + iconSize) * 0 /* vPos */)) &&
+			(y < ofGetHeight() - iconPadding - iconSize - ((iconPadding + iconSize) * 0 /* vPos */) + iconSize)
+			)
+		{
+			scoreTilesPaths.clear();
+			canvasTilesPaths.clear();
+			string str = tempTextBuffer;
+			string ext = ofFilePath::getFileExt(str);
+			ofDirectory dir(ofFilePath::getEnclosingDirectory(str));
+			//load show files with same extension
+			dir.allowExt(ext);
+			//populate the directory object
+			dir.listDir();
+			for (int i = 0; i < dir.size(); i++) {
+				string tmpPath = dir.getPath(i);
+				string tmpCanvasPath = ofFilePath::getEnclosingDirectory(tmpPath) + "annotations/" + ofFilePath::getBaseName(tmpPath) + "-annotations.png";
+				if (tmpPath.find("-annotations.png") == std::string::npos) { // Only load if -annotations.png is not part of the filename
+					scoreTilesPaths.push_back(tmpPath);
+					canvasTilesPaths.push_back(tmpCanvasPath);
+				}
+			}
+
+			loadedScorep = true;
+			filePrevScore.open(pathPrevScore, ofFile::WriteOnly);
+			filePrevScore << str << endl;
+			filePrevScore.close();
+			pathLoadedScore = str;
+			if (build != "raspi") {
+				pathAudio = ofFilePath::getEnclosingDirectory(str) + ofFilePath::getBaseName(str) + ".wav";
+				//pathCanvas = ofFilePath::getEnclosingDirectory(str) + ofFilePath::getBaseName(str) + "-canvas.png";
+				if (ofFile::doesFileExist(pathAudio)) {
+					audiop = true;
+				}
+				else audiop = false;
+			}
+			pathLoadedScoreConf = ofFilePath::getEnclosingDirectory(str) + ofFilePath::getBaseName(str) + ".piscore";
+			if (ofFile::doesFileExist(pathLoadedScoreConf)) {
+				loadedScoreConfp = true;
+				ifstream fin; //declare a file stream  
+				fin.open(pathLoadedScoreConf.c_str()); //open your text file
+				for (int i = 0; i < 9; i++) {
+					string str; //declare a string for storage  
+					getline(fin, str); //get a line from the file, put it in the string  
+					loadedScoreConfData.push_back(str);
+				}
+				fin.close();
+				start = atoi(loadedScoreConfData[0].c_str());
+				end = atoi(loadedScoreConfData[1].c_str());
+				clefsStart = atoi(loadedScoreConfData[2].c_str());
+				clefsEnd = atoi(loadedScoreConfData[3].c_str());
+				dur = atof(loadedScoreConfData[4].c_str());
+				preroll = atof(loadedScoreConfData[5].c_str());
+				zoom = atof(loadedScoreConfData[6].c_str());
+				vOffset = atoi(loadedScoreConfData[7].c_str());
+				audioStart = atoi(loadedScoreConfData[8].c_str());
+			}
+			else {
+				loadedScoreConfp = false;
+			}
+			raspiScorePathDialogp = false;
 		}
 
 	}

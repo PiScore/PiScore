@@ -115,6 +115,9 @@ public:
 	int scoreTotalWidth;
 	int scoreTotalHeight;
 
+	bool raspiScorePathDialogp;
+	vector <char> tmpDisplayString;
+
 	vector<string> license;
 	ofBuffer licenseBuffer;
 	bool viewLicensep;
