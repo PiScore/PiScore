@@ -22,13 +22,16 @@
 #include "ofMain.h"
 #include "ofxOsc.h"
 
+#define BUILD 0
+// Windows:      0
+// MacOS:        1
+// Raspberry Pi: 2
+
 class ofApp : public ofBaseApp {
 
 public:
 	string appVersionID;
 	string build;
-
-	string userPath;
 
 	void setup();
 	void update();
@@ -108,8 +111,6 @@ public:
 	int screenSettingsStep;
 	vector<string> loadedScreenSettingsData;
 
-	vector <string> scoreTilesPaths;
-	vector <string> canvasTilesPaths;
 	vector <ofImage> scoreTilesImages;
 	vector <ofImage> canvasTilesImages;
 	int scoreTotalWidth;
@@ -145,14 +146,29 @@ public:
 	string pathLoadedScore;
 	string pathLoadedScoreConf;
 	ofFile fileLoadedScoreConf;
-	vector<string> loadedScoreConfData;
 	bool loadedScorep;
 	bool loadedScoreConfp;
 
+	bool mousePressedp;
+
+	string userPath;
+
+	string scorePath;
+	vector <string> scorePathVector;
+	vector <string> canvasPathVector;
+	string scoreConfPath;
+	string audioPath;
+	vector <string> scoreConfVector;
+
+	// FUNCTIONS
 	int calculateScoreX(int);
 	int calculateScoreXFromAudio(int);
-
-	bool mousePressedp;
+	string getStringFromPath(string path);
+	vector <string> scorePathLoader(string path);
+	vector <string> canvasPathLoader(vector <string> scoreVector);
+	string scoreConfPathLoader(string scorePath);
+	string audioPathLoader(string scorePath);
+	vector <string> getScoreConfs(string scoreConfPath);
 
 	// GUI
 	string iconPath;

@@ -23,15 +23,101 @@
 //#include <chrono>
 //#include <thread>
 
+string ofApp::getStringFromPath(string path) {
+	ifstream fin;
+	string str;
+	fin.open(path.c_str());
+	getline(fin, str);
+	fin.close();
+	return str;
+}
+
+vector <string> ofApp::scorePathLoader(string filePath) {
+	vector <string> fileVector;
+	ofFile file(filePath);
+	ofDirectory dir(file.getEnclosingDirectory());
+	dir.allowExt(file.getExtension());
+	dir.listDir();
+	for (int i = 0; i < dir.size(); i++) {
+		fileVector.push_back(dir.getPath(i));
+	}
+	return fileVector;
+}
+
+vector <string> ofApp::canvasPathLoader(vector <string> scorePathVector) {
+	vector <string> fileVector;
+	for (int i = 0; i < scorePathVector.size(); i++) {
+		ofFile tmpFile(scorePathVector[i]);
+		ofFile tmpCanvasFile(tmpFile.getEnclosingDirectory() + "annotations/" + tmpFile.getBaseName() + "-annotations.png");
+		string tmpCanvasPath = tmpCanvasFile.getEnclosingDirectory() + tmpCanvasFile.getFileName(); // Ensure correct slash formatting on Windows
+		fileVector.push_back(tmpCanvasPath);
+	}
+	return fileVector;
+}
+
+string ofApp::scoreConfPathLoader(string scorePath) {
+	// Expects the path of the first score tile
+	// Audio file should be a *.piscore file with the same base name as the first score tile and be located in the same directory
+	ofFile scoreFile(scorePath);
+	string filePath = scoreFile.getEnclosingDirectory() + scoreFile.getBaseName() + ".piscore";
+	return filePath;
+}
+
+string ofApp::audioPathLoader(string scorePath) {
+	// Expects the path of the first score tile
+	// Audio file should be a *.wav file with the same base name as the first score tile and be located in the same directory
+	ofFile scoreFile(scorePath);
+	string filePath = scoreFile.getEnclosingDirectory() + scoreFile.getBaseName() + ".wav";
+	return filePath;
+}
+
+vector <string> ofApp::getScoreConfs(string scoreConfPath) {
+	vector <string> vec;
+	ifstream fin;
+	fin.open(scoreConfPath.c_str());
+	for (int i = 0; i < 9; i++) {
+		string str;
+		getline(fin, str);
+		vec.push_back(str);
+	}
+	fin.close();
+	return vec;
+}
+
+int ofApp::calculateScoreX(int frame) {
+	float travel; // 0 - 1, 1 = 100% complete
+	int xPos;
+	if (frame == 0) {
+		travel = 0;
+	}
+	else {
+		travel = (frame / static_cast<float>(totalFrames));
+	}
+	xPos = round((totalPx * travel) + start);
+	return xPos;
+}
+
+int ofApp::calculateScoreXFromAudio(int ms) {
+	float travel;
+	int xPos;
+	if ((ms - audioStart) == 0) {
+		travel = 0;
+	}
+	else {
+		travel = (ms - audioStart) / (dur * 1000);
+	}
+
+	xPos = round((totalPx * travel) + start);
+	return xPos;
+}
+
 //--------------------------------------------------------------
 void ofApp::setup() {
-	appVersionID = "0.3.2";
-	build = "windows"; // "windows", "osx", "raspi"
-
-	if (build == "windows") {
-		userPath = getenv("USERPROFILE"); // Windows build
+	appVersionID = "0.3.3";
+	if (BUILD == 0) { // Windows
+		userPath = getenv("USERPROFILE");
 	}
-	else if (build == "osx") {
+	else if (BUILD == 1) { // MacOS
 		userPath = getenv("HOME");
 		ofSetDataPathRoot("../Resources/data/");
 		// In Xcode project add following line to "Build Phases" --> "Run Script",
@@ -40,9 +126,8 @@ void ofApp::setup() {
 		// Set icon path in Project.xccode to bin/data/gui/ !!without string quotes!!
 		// and icon names to PiScore.icns
 	}
-	else if (build == "raspi") {
+	else if (BUILD == 2) { // Raspberry Pi
 		userPath = getenv("HOME");
-		//userPath = getenv("USERPROFILE"); // For debugging on Windows
 	}
 
 	ofSetWindowTitle("PiScore v" + appVersionID);
@@ -105,78 +190,118 @@ void ofApp::setup() {
 	wizardText[6] = "Enter the audio sync. point (ms)";
 
 	pathPrevScore = ofFilePath::getAbsolutePath(userPath + "/.piscore/prevscore");
-	if (!ofFile::doesFileExist(pathPrevScore)) {
-		loadedScorep = false;
-		loadedScoreConfp = false;
-		audiop = false;
-	}
-	else {
-		ifstream fin;
-		string str;
-		fin.open(pathPrevScore.c_str());
-		getline(fin, str);
-		if (ofFile::doesFileExist(str)) {
-			string ext = ofFilePath::getFileExt(str);
-			ofDirectory dir(ofFilePath::getEnclosingDirectory(str));
-			//load show files with same extension
-			dir.allowExt(ext);
-			//populate the directory object
-			dir.listDir();
-			for (int i = 0; i < dir.size(); i++) {
-				string tmpPath = dir.getPath(i);
-				string tmpCanvasPath = ofFilePath::getEnclosingDirectory(tmpPath) + "annotations/" + ofFilePath::getBaseName(tmpPath) + "-annotations.png";
-				if (tmpPath.find("-annotations.png") == std::string::npos) { // Only load if -annotations.png is not part of the filename
-					scoreTilesPaths.push_back(tmpPath);
-					canvasTilesPaths.push_back(tmpCanvasPath);
-				}
-				
+
+	if (ofFile::doesFileExist(pathPrevScore)) {
+		scorePath = ofApp::getStringFromPath(pathPrevScore);
+		cout << scorePath << endl;
+		if (ofFile::doesFileExist(scorePath)) {
+			// Load score tile paths and expected canvas paths 
+			scorePathVector = ofApp::scorePathLoader(scorePath);
+			canvasPathVector = ofApp::canvasPathLoader(scorePathVector);
+			ofFile filePrevScore;
+			filePrevScore.open(pathPrevScore, ofFile::WriteOnly);
+			filePrevScore << scorePathVector[0] << endl;
+			filePrevScore.close();
+			loadedScorep = true;
+
+			// Load expected *.piscore path
+			scoreConfPath = ofApp::scoreConfPathLoader(scorePathVector[0]);
+			cout << scoreConfPath << endl;
+			if (ofFile::doesFileExist(scoreConfPath)) {
+				scoreConfVector = ofApp::getScoreConfs(scoreConfPath);
+
+				start = atoi(scoreConfVector[0].c_str());
+				end = atoi(scoreConfVector[1].c_str());
+				clefsStart = atoi(scoreConfVector[2].c_str());
+				clefsEnd = atoi(scoreConfVector[3].c_str());
+				dur = atof(scoreConfVector[4].c_str());
+				preroll = atof(scoreConfVector[5].c_str());
+				zoom = atof(scoreConfVector[6].c_str());
+				vOffset = atoi(scoreConfVector[7].c_str());
+				audioStart = atoi(scoreConfVector[8].c_str());
+
+				loadedScoreConfp = true;
 			}
 
-			loadedScorep = true;
-			filePrevScore.open(pathPrevScore, ofFile::WriteOnly);
-			filePrevScore << str << endl;
-			filePrevScore.close();
-			pathLoadedScore = str;
-			if (build != "raspi") {
-				pathAudio = ofFilePath::getEnclosingDirectory(str) + ofFilePath::getBaseName(str) + ".wav";
-				//pathCanvas = ofFilePath::getEnclosingDirectory(str) + ofFilePath::getBaseName(str) + "-canvas.png";
-				if (ofFile::doesFileExist(pathAudio)) {
-					audiop = true;
-				}
-				else audiop = false;
-			}
-			pathLoadedScoreConf = ofFilePath::getEnclosingDirectory(str) + ofFilePath::getBaseName(str) + ".piscore";
-			if (ofFile::doesFileExist(pathLoadedScoreConf)) {
-				loadedScoreConfp = true;
-				ifstream fin; //declare a file stream  
-				fin.open(pathLoadedScoreConf.c_str()); //open your text file
-				for (int i = 0; i < 9; i++) {
-					string str; //declare a string for storage  
-					getline(fin, str); //get a line from the file, put it in the string  
-					loadedScoreConfData.push_back(str);
-				}
-				fin.close();
-				start = atoi(loadedScoreConfData[0].c_str());
-				end = atoi(loadedScoreConfData[1].c_str());
-				clefsStart = atoi(loadedScoreConfData[2].c_str());
-				clefsEnd = atoi(loadedScoreConfData[3].c_str());
-				dur = atof(loadedScoreConfData[4].c_str());
-				preroll = atof(loadedScoreConfData[5].c_str());
-				zoom = atof(loadedScoreConfData[6].c_str());
-				vOffset = atoi(loadedScoreConfData[7].c_str());
-				audioStart = atoi(loadedScoreConfData[8].c_str());
-			}
-			else {
-				loadedScoreConfp = false;
+			// Load expected *.wav path
+			audioPath = ofApp::audioPathLoader(scorePathVector[0]);
+			if (ofFile::doesFileExist(audioPath)) {
+				audiop = true;
 			}
 		}
-		else {
-			loadedScorep = false;
-			loadedScoreConfp = false;
-			audiop = false;
-		}
-		fin.close();
 	}
+
+	//if (!ofFile::doesFileExist(pathPrevScore)) {
+	//	loadedScorep = false;
+	//	loadedScoreConfp = false;
+	//	audiop = false;
+	//}
+	//else {
+	//	ifstream fin;
+	//	string str;
+	//	fin.open(pathPrevScore.c_str());
+	//	getline(fin, str);
+	//	if (ofFile::doesFileExist(str)) {
+	//		string ext = ofFilePath::getFileExt(str);
+	//		ofDirectory dir(ofFilePath::getEnclosingDirectory(str));
+	//		//load files with same extension
+	//		dir.allowExt(ext);
+	//		//populate the directory object
+	//		dir.listDir();
+	//		for (int i = 0; i < dir.size(); i++) {
+	//			string tmpPath = dir.getPath(i);
+	//			string tmpCanvasPath = ofFilePath::getEnclosingDirectory(tmpPath) + "annotations/" + ofFilePath::getBaseName(tmpPath) + "-annotations.png";
+	//			if (tmpPath.find("-annotations.png") == std::string::npos) { // Only load if -annotations.png is not part of the filename
+	//				scoreTilesPaths.push_back(tmpPath);
+	//				canvasTilesPaths.push_back(tmpCanvasPath);
+	//			}
+	//		}
+
+	//		loadedScorep = true;
+	//		filePrevScore.open(pathPrevScore, ofFile::WriteOnly);
+	//		filePrevScore << str << endl;
+	//		filePrevScore.close();
+	//		pathLoadedScore = str;
+	//		if (build != "raspi") {
+	//			pathAudio = ofFilePath::getEnclosingDirectory(str) + ofFilePath::getBaseName(str) + ".wav";
+	//			//pathCanvas = ofFilePath::getEnclosingDirectory(str) + ofFilePath::getBaseName(str) + "-canvas.png";
+	//			if (ofFile::doesFileExist(pathAudio)) {
+	//				audiop = true;
+	//			}
+	//			else audiop = false;
+	//		}
+	//		pathLoadedScoreConf = ofFilePath::getEnclosingDirectory(str) + ofFilePath::getBaseName(str) + ".piscore";
+	//		if (ofFile::doesFileExist(pathLoadedScoreConf)) {
+	//			loadedScoreConfp = true;
+	//			ifstream fin; //declare a file stream  
+	//			fin.open(pathLoadedScoreConf.c_str()); //open your text file
+	//			for (int i = 0; i < 9; i++) {
+	//				string str; //declare a string for storage  
+	//				getline(fin, str); //get a line from the file, put it in the string  
+	//				scoreConfVector.push_back(str);
+	//			}
+	//			fin.close();
+	//			start = atoi(scoreConfVector[0].c_str());
+	//			end = atoi(scoreConfVector[1].c_str());
+	//			clefsStart = atoi(scoreConfVector[2].c_str());
+	//			clefsEnd = atoi(scoreConfVector[3].c_str());
+	//			dur = atof(scoreConfVector[4].c_str());
+	//			preroll = atof(scoreConfVector[5].c_str());
+	//			zoom = atof(scoreConfVector[6].c_str());
+	//			vOffset = atoi(scoreConfVector[7].c_str());
+	//			audioStart = atoi(scoreConfVector[8].c_str());
+	//		}
+	//		else {
+	//			loadedScoreConfp = false;
+	//		}
+	//	}
+	//	else {
+	//		loadedScorep = false;
+	//		loadedScoreConfp = false;
+	//		audiop = false;
+	//	}
+	//	fin.close();
+	//}
 
 	scoreX = start; // init value if !serverp has not yet received any messages
 	localScoreX = scoreX;
@@ -255,33 +380,6 @@ void ofApp::setup() {
 	exitDialogp = false;
 	exitDialogSchedule = 0;
 
-}
-
-int ofApp::calculateScoreX(int frame) {
-	float travel; // 0 - 1, 1 = 100% complete
-	int xPos;
-	if (frame == 0) {
-		travel = 0;
-	}
-	else {
-		travel = (frame / static_cast<float>(totalFrames));
-	}
-	xPos = round((totalPx * travel) + start);
-	return xPos;
-}
-
-int ofApp::calculateScoreXFromAudio(int ms) {
-	float travel;
-	int xPos;
-	if ((ms - audioStart) == 0) {
-		travel = 0;
-	}
-	else {
-		travel = (ms - audioStart) / (dur * 1000);
-	}
-
-	xPos = round((totalPx * travel) + start);
-	return xPos;
 }
 
 
@@ -391,23 +489,23 @@ void ofApp::draw() {
 			ofSetColor(0);
 			if (serverp) {
 				if (build == "raspi") {
-					ofDrawBitmapString("Score loaded: " + ofFilePath::getFileName(pathLoadedScore),
+					ofDrawBitmapString("Score loaded: " + ofFilePath::getFileName(scorePathVector[0]),
 						iconPadding + ((iconPadding + iconSize) * 1 /* hPos */),
 						iconPadding + ((iconPadding + iconSize) * 0 /* vPos */) + round(iconSize * 0.5) + 4);
 				}
 				else if (audiop) {
-					ofDrawBitmapString("Score loaded: " + ofFilePath::getFileName(pathLoadedScore) + ".\nAudio loaded: true",
+					ofDrawBitmapString("Score loaded: " + ofFilePath::getFileName(scorePathVector[0]) + "\nAudio loaded: true",
 						iconPadding + ((iconPadding + iconSize) * 1 /* hPos */),
 						iconPadding + ((iconPadding + iconSize) * 0 /* vPos */) + round(iconSize * 0.5) - 2);
 				}
 				else {
-					ofDrawBitmapString("Score loaded: " + ofFilePath::getFileName(pathLoadedScore) + ".\nAudio loaded: false",
+					ofDrawBitmapString("Score loaded: " + ofFilePath::getFileName(scorePathVector[0]) + "\nAudio loaded: false",
 						iconPadding + ((iconPadding + iconSize) * 1 /* hPos */),
 						iconPadding + ((iconPadding + iconSize) * 0 /* vPos */) + round(iconSize * 0.5) - 2);
 				}
 			}
 			else {
-				ofDrawBitmapString("Score loaded: " + ofFilePath::getFileName(pathLoadedScore),
+				ofDrawBitmapString("Score loaded: " + ofFilePath::getFileName(scorePathVector[0]),
 					iconPadding + ((iconPadding + iconSize) * 1 /* hPos */),
 					iconPadding + ((iconPadding + iconSize) * 0 /* vPos */) + round(iconSize * 0.5) + 4);
 			}
@@ -1477,9 +1575,9 @@ void ofApp::mousePressed(int x, int y, int button) {
 
 			scoreTotalWidth = 0; // Reset totalwidth for new calculation
 			scoreTotalHeight = 0; // Reset totalheight for new calculation
-			for (int i = 0; i < scoreTilesPaths.size(); i++) {
+			for (int i = 0; i < scorePathVector.size(); i++) {
 				ofImage tmpImg;
-				tmpImg.load(scoreTilesPaths[i]);
+				tmpImg.load(scorePathVector[i]);
 				scoreTilesImages.push_back(tmpImg);
 				scoreTotalWidth += tmpImg.getWidth();
 				if (i == 0) scoreTotalHeight = tmpImg.getHeight(); // Calculate height from first tile only
@@ -1487,10 +1585,10 @@ void ofApp::mousePressed(int x, int y, int button) {
 			if ((clefsEnd - clefsStart) > 0) {
 				clefs.cropFrom(scoreTilesImages[0], clefsStart, 0, (clefsEnd - clefsStart), scoreTotalHeight);
 			}
-			for (int i = 0; i < canvasTilesPaths.size(); i++) {
+			for (int i = 0; i < canvasPathVector.size(); i++) {
 				ofImage tmpImg;
-				if (ofFile::doesFileExist(canvasTilesPaths[i])) {
-					tmpImg.load(canvasTilesPaths[i]);
+				if (ofFile::doesFileExist(canvasPathVector[i])) {
+					tmpImg.load(canvasPathVector[i]);
 					//std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 				}
 				else {
@@ -1523,77 +1621,120 @@ void ofApp::mousePressed(int x, int y, int button) {
 			(y < iconPadding + ((iconPadding + iconSize) * 0 /* vPos */) + iconSize)
 			)
 		{
-			if (build != "raspi") {
-				ofFileDialogResult loadscore = ofSystemLoadDialog("Load first score tile (PNG/JPG/GIF)");
-				if (loadscore.bSuccess) {
-					scoreTilesPaths.clear();
-					canvasTilesPaths.clear();
-					string str = loadscore.getPath();
-					string ext = ofFilePath::getFileExt(str);
-					ofDirectory dir(ofFilePath::getEnclosingDirectory(str));
-					//load show files with same extension
-					dir.allowExt(ext);
-					//populate the directory object
-					dir.listDir();
-					for (int i = 0; i < dir.size(); i++) {
-						string tmpPath = dir.getPath(i);
-						string tmpCanvasPath = ofFilePath::getEnclosingDirectory(tmpPath) + "annotations/" + ofFilePath::getBaseName(tmpPath) + "-annotations.png";
-						if (tmpPath.find("-annotations.png") == std::string::npos) { // Only load if -annotations.png is not part of the filename
-							scoreTilesPaths.push_back(tmpPath);
-							canvasTilesPaths.push_back(tmpCanvasPath);
-						}
+			ofFileDialogResult loadscore = ofSystemLoadDialog("Load first score tile (PNG/JPG/GIF)");
+			if (loadscore.bSuccess) {
+				scorePathVector.clear();
+				canvasPathVector.clear();
+				scorePath = loadscore.getPath();
+				if (ofFile::doesFileExist(scorePath)) {
+					// Load score tile paths and expected canvas paths 
+					scorePathVector = ofApp::scorePathLoader(scorePath);
+					canvasPathVector = ofApp::canvasPathLoader(scorePathVector);
+					ofFile filePrevScore;
+					filePrevScore.open(pathPrevScore, ofFile::WriteOnly);
+					filePrevScore << scorePathVector[0] << endl;
+					filePrevScore.close();
+					loadedScorep = true;
+
+					// Load expected *.piscore path
+					scoreConfPath = ofApp::scoreConfPathLoader(scorePathVector[0]);
+					if (ofFile::doesFileExist(scoreConfPath)) {
+						scoreConfVector = ofApp::getScoreConfs(scoreConfPath);
+
+						start = atoi(scoreConfVector[0].c_str());
+						end = atoi(scoreConfVector[1].c_str());
+						clefsStart = atoi(scoreConfVector[2].c_str());
+						clefsEnd = atoi(scoreConfVector[3].c_str());
+						dur = atof(scoreConfVector[4].c_str());
+						preroll = atof(scoreConfVector[5].c_str());
+						zoom = atof(scoreConfVector[6].c_str());
+						vOffset = atoi(scoreConfVector[7].c_str());
+						audioStart = atoi(scoreConfVector[8].c_str());
+
+						loadedScoreConfp = true;
 					}
 
-					loadedScorep = true;
-					filePrevScore.open(pathPrevScore, ofFile::WriteOnly);
-					filePrevScore << str << endl;
-					filePrevScore.close();
-					pathLoadedScore = str;
-					if (build != "raspi") {
-						pathAudio = ofFilePath::getEnclosingDirectory(str) + ofFilePath::getBaseName(str) + ".wav";
-						//pathCanvas = ofFilePath::getEnclosingDirectory(str) + ofFilePath::getBaseName(str) + "-canvas.png";
-						if (ofFile::doesFileExist(pathAudio)) {
-							audiop = true;
-						}
-						else audiop = false;
-					}
-					pathLoadedScoreConf = ofFilePath::getEnclosingDirectory(str) + ofFilePath::getBaseName(str) + ".piscore";
-					if (ofFile::doesFileExist(pathLoadedScoreConf)) {
-						loadedScoreConfp = true;
-						ifstream fin; //declare a file stream  
-						fin.open(pathLoadedScoreConf.c_str()); //open your text file
-						for (int i = 0; i < 9; i++) {
-							string str; //declare a string for storage  
-							getline(fin, str); //get a line from the file, put it in the string  
-							loadedScoreConfData.push_back(str);
-						}
-						fin.close();
-						start = atoi(loadedScoreConfData[0].c_str());
-						end = atoi(loadedScoreConfData[1].c_str());
-						clefsStart = atoi(loadedScoreConfData[2].c_str());
-						clefsEnd = atoi(loadedScoreConfData[3].c_str());
-						dur = atof(loadedScoreConfData[4].c_str());
-						preroll = atof(loadedScoreConfData[5].c_str());
-						zoom = atof(loadedScoreConfData[6].c_str());
-						vOffset = atoi(loadedScoreConfData[7].c_str());
-						audioStart = atoi(loadedScoreConfData[8].c_str());
-					}
-					else {
-						loadedScoreConfp = false;
+					// Load expected *.wav path
+					audioPath = ofApp::audioPathLoader(scorePathVector[0]);
+					if (ofFile::doesFileExist(audioPath)) {
+						audiop = true;
 					}
 				}
 			}
-			else if (build == "raspi") {
-				if (ofFile::doesFileExist(pathPrevScore)) {
-					ifstream fin;
-					string str;
-					fin.open(pathPrevScore.c_str());
-					getline(fin, str);
-					tempTextBuffer = str;
-					fin.close();
-				}
-				else tempTextBuffer = userPath;
-				raspiScorePathDialogp = true;
+			//if (build != "raspi") {
+			//	ofFileDialogResult loadscore = ofSystemLoadDialog("Load first score tile (PNG/JPG/GIF)");
+			//	if (loadscore.bSuccess) {
+			//		scoreTilesPaths.clear();
+			//		canvasTilesPaths.clear();
+			//		string str = loadscore.getPath();
+			//		string ext = ofFilePath::getFileExt(str);
+			//		ofDirectory dir(ofFilePath::getEnclosingDirectory(str));
+			//		//load show files with same extension
+			//		dir.allowExt(ext);
+			//		//populate the directory object
+			//		dir.listDir();
+			//		for (int i = 0; i < dir.size(); i++) {
+			//			string tmpPath = dir.getPath(i);
+			//			string tmpCanvasPath = ofFilePath::getEnclosingDirectory(tmpPath) + "annotations/" + ofFilePath::getBaseName(tmpPath) + "-annotations.png";
+			//			if (tmpPath.find("-annotations.png") == std::string::npos) { // Only load if -annotations.png is not part of the filename
+			//				scoreTilesPaths.push_back(tmpPath);
+			//				canvasTilesPaths.push_back(tmpCanvasPath);
+			//			}
+			//		}
+
+			//		loadedScorep = true;
+			//		filePrevScore.open(pathPrevScore, ofFile::WriteOnly);
+			//		filePrevScore << str << endl;
+			//		filePrevScore.close();
+			//		pathLoadedScore = str;
+			//		if (build != "raspi") {
+			//			pathAudio = ofFilePath::getEnclosingDirectory(str) + ofFilePath::getBaseName(str) + ".wav";
+			//			//pathCanvas = ofFilePath::getEnclosingDirectory(str) + ofFilePath::getBaseName(str) + "-canvas.png";
+			//			if (ofFile::doesFileExist(pathAudio)) {
+			//				audiop = true;
+			//			}
+			//			else audiop = false;
+			//		}
+			//		pathLoadedScoreConf = ofFilePath::getEnclosingDirectory(str) + ofFilePath::getBaseName(str) + ".piscore";
+			//		if (ofFile::doesFileExist(pathLoadedScoreConf)) {
+			//			loadedScoreConfp = true;
+			//			ifstream fin; //declare a file stream  
+			//			fin.open(pathLoadedScoreConf.c_str()); //open your text file
+			//			for (int i = 0; i < 9; i++) {
+			//				string str; //declare a string for storage  
+			//				getline(fin, str); //get a line from the file, put it in the string  
+			//				scoreConfVector.push_back(str);
+			//			}
+			//			fin.close();
+			//			start = atoi(scoreConfVector[0].c_str());
+			//			end = atoi(scoreConfVector[1].c_str());
+			//			clefsStart = atoi(scoreConfVector[2].c_str());
+			//			clefsEnd = atoi(scoreConfVector[3].c_str());
+			//			dur = atof(scoreConfVector[4].c_str());
+			//			preroll = atof(scoreConfVector[5].c_str());
+			//			zoom = atof(scoreConfVector[6].c_str());
+			//			vOffset = atoi(scoreConfVector[7].c_str());
+			//			audioStart = atoi(scoreConfVector[8].c_str());
+			//		}
+			//		else {
+			//			loadedScoreConfp = false;
+			//		}
+			//	}
+			//}
+			//else if (build == "raspi") {
+			//	if (ofFile::doesFileExist(pathPrevScore)) {
+			//		ifstream fin;
+			//		string str;
+			//		fin.open(pathPrevScore.c_str());
+			//		getline(fin, str);
+			//		tempTextBuffer = str;
+			//		fin.close();
+			//	}
+			//	else tempTextBuffer = userPath;
+			//	raspiScorePathDialogp = true;
+			//}
+			for (int i = 0; i < scorePathVector.size(); i++) {
+				cout << canvasPathVector[i] << endl;
 			}
 		}
 
@@ -1615,9 +1756,9 @@ void ofApp::mousePressed(int x, int y, int button) {
 
 			scoreTotalWidth = 0; // Reset totalwidth for new calculation
 			scoreTotalHeight = 0; // Reset totalheight for new calculation
-			for (int i = 0; i < scoreTilesPaths.size(); i++) {
+			for (int i = 0; i < scorePathVector.size(); i++) {
 				ofImage tmpImg;
-				tmpImg.load(scoreTilesPaths[i]);
+				tmpImg.load(scorePathVector[i]);
 				scoreTilesImages.push_back(tmpImg);
 				scoreTotalWidth += tmpImg.getWidth();
 				if (i == 0) scoreTotalHeight = tmpImg.getHeight(); // Calculate height from first tile only
@@ -1771,8 +1912,8 @@ void ofApp::mousePressed(int x, int y, int button) {
 			(y < ofGetHeight() - iconPadding - iconSize - ((iconPadding + iconSize) * 0 /* vPos */) + iconSize)
 			)
 		{
-			scoreTilesPaths.clear();
-			canvasTilesPaths.clear();
+			scorePathVector.clear();
+			canvasPathVector.clear();
 			string str = tempTextBuffer;
 			string ext = ofFilePath::getFileExt(str);
 			ofDirectory dir(ofFilePath::getEnclosingDirectory(str));
@@ -1784,11 +1925,11 @@ void ofApp::mousePressed(int x, int y, int button) {
 				string tmpPath = dir.getPath(i);
 				string tmpCanvasPath = ofFilePath::getEnclosingDirectory(tmpPath) + "annotations/" + ofFilePath::getBaseName(tmpPath) + "-annotations.png";
 				if (tmpPath.find("-annotations.png") == std::string::npos) { // Only load if -annotations.png is not part of the filename
-					scoreTilesPaths.push_back(tmpPath);
-					canvasTilesPaths.push_back(tmpCanvasPath);
+					scorePathVector.push_back(tmpPath);
+					canvasPathVector.push_back(tmpCanvasPath);
 				}
 			}
-			
+
 
 			loadedScorep = true;
 			filePrevScore.open(pathPrevScore, ofFile::WriteOnly);
@@ -1811,18 +1952,18 @@ void ofApp::mousePressed(int x, int y, int button) {
 				for (int i = 0; i < 9; i++) {
 					string str; //declare a string for storage  
 					getline(fin, str); //get a line from the file, put it in the string  
-					loadedScoreConfData.push_back(str);
+					scoreConfVector.push_back(str);
 				}
 				fin.close();
-				start = atoi(loadedScoreConfData[0].c_str());
-				end = atoi(loadedScoreConfData[1].c_str());
-				clefsStart = atoi(loadedScoreConfData[2].c_str());
-				clefsEnd = atoi(loadedScoreConfData[3].c_str());
-				dur = atof(loadedScoreConfData[4].c_str());
-				preroll = atof(loadedScoreConfData[5].c_str());
-				zoom = atof(loadedScoreConfData[6].c_str());
-				vOffset = atoi(loadedScoreConfData[7].c_str());
-				audioStart = atoi(loadedScoreConfData[8].c_str());
+				start = atoi(scoreConfVector[0].c_str());
+				end = atoi(scoreConfVector[1].c_str());
+				clefsStart = atoi(scoreConfVector[2].c_str());
+				clefsEnd = atoi(scoreConfVector[3].c_str());
+				dur = atof(scoreConfVector[4].c_str());
+				preroll = atof(scoreConfVector[5].c_str());
+				zoom = atof(scoreConfVector[6].c_str());
+				vOffset = atoi(scoreConfVector[7].c_str());
+				audioStart = atoi(scoreConfVector[8].c_str());
 			}
 			else {
 				loadedScoreConfp = false;
@@ -2025,7 +2166,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 			}
 			else {
 				audioStart = atoi(tempTextBuffer.c_str());
-				fileLoadedScoreConf.open(pathLoadedScoreConf, ofFile::WriteOnly);
+				fileLoadedScoreConf.open(scoreConfPath, ofFile::WriteOnly);
 				fileLoadedScoreConf << start << endl;
 				fileLoadedScoreConf << end << endl;
 				fileLoadedScoreConf << clefsStart << endl;
@@ -2072,7 +2213,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 					// Save canvas and settings (zoom and vOffset) on exit editmode
 					//canvas.save(pathCanvas);
 
-					fileLoadedScoreConf.open(pathLoadedScoreConf, ofFile::WriteOnly);
+					fileLoadedScoreConf.open(scoreConfPath, ofFile::WriteOnly);
 					fileLoadedScoreConf << start << endl;
 					fileLoadedScoreConf << end << endl;
 					fileLoadedScoreConf << clefsStart << endl;
@@ -2354,10 +2495,10 @@ void ofApp::mousePressed(int x, int y, int button) {
 
 			if (appState == 2) { // Save canvas and settings (zoom and vOffset) on exit to launcher
 				for (int i = 0; i < canvasTilesImages.size(); i++) {
-					canvasTilesImages[i].save(canvasTilesPaths[i]);
+					canvasTilesImages[i].save(canvasPathVector[i]);
 				}
 
-				fileLoadedScoreConf.open(pathLoadedScoreConf, ofFile::WriteOnly);
+				fileLoadedScoreConf.open(scoreConfPath, ofFile::WriteOnly);
 				fileLoadedScoreConf << start << endl;
 				fileLoadedScoreConf << end << endl;
 				fileLoadedScoreConf << clefsStart << endl;
