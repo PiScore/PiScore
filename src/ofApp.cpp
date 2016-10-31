@@ -225,9 +225,11 @@ void ofApp::setup() {
 
 			// Load expected *.wav path
 			audioPath = ofApp::audioPathLoader(scorePathVector[0]);
+			cout << audioPath << endl;
 			if (ofFile::doesFileExist(audioPath)) {
 				audiop = true;
 			}
+			cout << audiop << endl;
 		}
 	}
 
@@ -1601,7 +1603,7 @@ void ofApp::mousePressed(int x, int y, int button) {
 			scoreFitToHeight = ofGetHeight() / static_cast<float>(scoreTotalHeight);
 
 			if (serverp && audiop && build != "raspi") {
-				audio.load(pathAudio);
+				audio.load(audioPath);
 				audio.setVolume(1.0);
 				audio.setLoop(false);
 				audio.setMultiPlay(false);
@@ -1625,6 +1627,9 @@ void ofApp::mousePressed(int x, int y, int button) {
 			if (loadscore.bSuccess) {
 				scorePathVector.clear();
 				canvasPathVector.clear();
+				loadedScorep = false;
+				loadedScoreConfp = false;
+				audiop = false;
 				scorePath = loadscore.getPath();
 				if (ofFile::doesFileExist(scorePath)) {
 					// Load score tile paths and expected canvas paths 
@@ -1937,9 +1942,9 @@ void ofApp::mousePressed(int x, int y, int button) {
 			filePrevScore.close();
 			pathLoadedScore = str;
 			if (build != "raspi") {
-				pathAudio = ofFilePath::getEnclosingDirectory(str) + ofFilePath::getBaseName(str) + ".wav";
+				audioPath = ofFilePath::getEnclosingDirectory(str) + ofFilePath::getBaseName(str) + ".wav";
 				//pathCanvas = ofFilePath::getEnclosingDirectory(str) + ofFilePath::getBaseName(str) + "-canvas.png";
-				if (ofFile::doesFileExist(pathAudio)) {
+				if (ofFile::doesFileExist(audioPath)) {
 					audiop = true;
 				}
 				else audiop = false;
